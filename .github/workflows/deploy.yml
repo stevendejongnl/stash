@@ -84,6 +84,8 @@ jobs:
       name: production
     permissions:
       contents: read
+    env:
+      KUBECTL_ARGS: --insecure-skip-tls-verify
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,12 +105,12 @@ jobs:
 
       - name: Apply manifests
         run: |
-          kubectl apply -f k8s/database.yaml
-          kubectl apply -f deployment.yaml
+          kubectl $KUBECTL_ARGS apply -f k8s/database.yaml --validate=false
+          kubectl $KUBECTL_ARGS apply -f deployment.yaml --validate=false
 
       - name: Update image to latest build
         run: |
-          kubectl set image deployment/stash-deployment -n madebysteven stash=${{ needs.build.outputs.image }}
+          kubectl $KUBECTL_ARGS set image deployment/stash-deployment -n madebysteven stash=${{ needs.build.outputs.image }}
 
       - name: Wait for rollout
-        run: kubectl rollout status deployment/stash-deployment -n madebysteven --timeout=180s
+        run: kubectl $KUBECTL_ARGS rollout status deployment/stash-deployment -n madebysteven --timeout=180s
