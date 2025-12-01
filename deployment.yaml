@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: madebysteven
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stash-deployment
+  namespace: madebysteven
+  labels:
+    app: stash
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: stash
+  template:
+    metadata:
+      labels:
+        app: stash
+    spec:
+      containers:
+        - name: stash
+          image: ghcr.io/stevendejongnl/stash:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: stash-db-secret
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /api/products
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/products
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stash-service
+  namespace: madebysteven
+  labels:
+    app: stash
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: stash
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stash-ingress
+  namespace: madebysteven
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # If you use cert-manager / certbot, add the relevant annotations here.
+spec:
+  rules:
+    - host: stash.madebysteven.nl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: stash-service
+                port:
+                  number: 80
+  # For TLS, add a tls section with a secretName and set up cert-manager / your issuer.
+  # tls:
+  #   - hosts:
+  #       - stash.madebysteven.nl
+  #     secretName: stash-tls

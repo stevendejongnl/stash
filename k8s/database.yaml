@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stash-db-secret
+  namespace: madebysteven
+  labels:
+    app: stash
+stringData:
+  # Set via kubectl create secret generic --from-literal DB_PASSWORD=... or use SealedSecrets
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: stash
+  DATABASE_URL: postgresql://postgres:postgres@stash-db:5432/stash
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stash-db
+  namespace: madebysteven
+  labels:
+    app: stash-db
+spec:
+  serviceName: stash-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stash-db
+  template:
+    metadata:
+      labels:
+        app: stash-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: stash-db-secret
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: db-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stash-db
+  namespace: madebysteven
+  labels:
+    app: stash-db
+spec:
+  clusterIP: None
+  selector:
+    app: stash-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+

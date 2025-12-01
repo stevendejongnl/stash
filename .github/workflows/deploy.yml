@@ -1,0 +1,107 @@
+name: ci-cd
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.sha_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: pipx install poetry==1.8.3
+
+      - name: Install dependencies
+        env:
+          POETRY_VIRTUALENVS_CREATE: 'false'
+        run: poetry install --no-interaction --no-root --only main
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image coordinates
+        id: image
+        run: |
+          IMAGE_REPO=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "repository=${{ env.REGISTRY }}/${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${{ env.REGISTRY }}/${IMAGE_REPO}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${{ env.REGISTRY }}/${IMAGE_REPO}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.repository }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=tag
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image.outputs.sha_tag }}
+            ${{ steps.image.outputs.latest_tag }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+
+      - name: Configure kubeconfig
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          printf '%s' "${KUBECONFIG_CONTENT}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f k8s/database.yaml
+          kubectl apply -f deployment.yaml
+
+      - name: Update image to latest build
+        run: |
+          kubectl set image deployment/stash-deployment -n madebysteven stash=${{ needs.build.outputs.image }}
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/stash-deployment -n madebysteven --timeout=180s

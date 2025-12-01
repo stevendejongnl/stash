@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>stash — Made by Steven</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>stash</h1>
+      <p>Your personal wishlist — collect product links and notes.</p>
+    </header>
+
+    <section class="form">
+      <h2>Add product</h2>
+      <form id="productForm">
+        <label>Title <input type="text" id="title" required/></label>
+        <label>URL <input type="url" id="url" required/></label>
+        <label>Price <input type="text" id="price" placeholder="Optional"/></label>
+        <label>Image URL <input type="url" id="image" placeholder="Optional"/></label>
+        <label>Notes <textarea id="notes" rows="2" placeholder="Why do you want this?"></textarea></label>
+        <button type="submit">Save to stash</button>
+      </form>
+    </section>
+
+    <section class="list">
+      <h2>Your wishlist</h2>
+      <div id="products"></div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
