@@ -30,9 +30,16 @@ jobs:
       - name: Install Poetry
         run: pipx install poetry==1.8.3
 
+      - name: Prepare Poetry environment
+        env:
+          POETRY_VIRTUALENVS_IN_PROJECT: 'true'
+        run: |
+          poetry env use 3.13
+          poetry run python --version
+
       - name: Install dependencies
         env:
-          POETRY_VIRTUALENVS_CREATE: 'false'
+          POETRY_VIRTUALENVS_IN_PROJECT: 'true'
         run: poetry install --no-interaction --no-root --only main
 
       - name: Log in to GHCR
